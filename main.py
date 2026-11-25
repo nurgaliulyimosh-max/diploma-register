@@ -430,6 +430,12 @@ def guide(request: Request):
         return render(request, db, "guide")
 
 
+@app.get("/api-center", include_in_schema=False)
+def api_center(request: Request):
+    with Session(engine) as db:
+        return render(request, db, "api_center")
+
+
 @app.post("/account")
 async def sign_in(request: Request):
     form = await request.form()

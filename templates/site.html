@@ -24,6 +24,7 @@
     {% if user and user.role != 'student' %}<a href="/manage" class="{{ 'selected' if screen in ['manage','edit'] else '' }}">Тақырыптарды басқару</a>{% endif %}
     {% if user and user.role == 'department' %}<a href="/areas" class="{{ 'selected' if screen == 'areas' else '' }}">Бағыттар</a>{% endif %}
     <a href="/guide" class="{{ 'selected' if screen == 'guide' else '' }}">Тіркеу тәртібі</a>
+    <a href="/api-center" class="{{ 'selected' if screen == 'api_center' else '' }}" {% if screen == 'api_center' %}aria-current="page"{% endif %}>API орталығы</a>
   </nav>
 </div>
   <main>
@@ -235,6 +236,24 @@
         <button>Сақтау</button>
       </form>
       {% if topic %}<details class="decision"><summary>Тақырыпты жою</summary><form method="post"><button class="light" name="delete" value="yes">Жоюды растау</button></form></details>{% endif %}
+      </section>
+    {% elif screen == 'api_center' %}
+      <h1>API орталығы</h1>
+      <section class="panel pad entry">
+        <h2>API құжаттамасы</h2>
+        <div class="actions">
+          <a class="button" href="/docs">Swagger UI</a>
+          <a class="button light" href="/redoc">ReDoc</a>
+          <a class="button light" href="/openapi.json">OpenAPI JSON</a>
+        </div>
+      </section>
+      <section class="panel pad">
+        <h2>Сұрауларды тексеру</h2>
+        <ol>
+          <li>Каталогтың бірінші бетін көру үшін <a href="/api/topics?page=1"><code>GET /api/topics?page=1</code></a> сұрауын ашыңыз.</li>
+          <li>Тақырыпты қосу немесе өңдеу үшін Swagger UI ішіндегі <strong>Authorize</strong> батырмасын басып, жетекші не кафедра аккаунтымен кіріңіз.</li>
+          <li>Валидацияны тексеру үшін <code>POST /api/topics</code> сұрауының жарамды денесінде орын санын <code>"capacity": 0</code> деп көрсетіңіз. API <code>422</code> жауабын қайтарады.</li>
+        </ol>
       </section>
     {% elif screen == 'guide' %}
       <h1>Тіркеу тәртібі</h1>
