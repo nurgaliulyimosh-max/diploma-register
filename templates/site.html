@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="kk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Дипломдық жобалар | Тіркеу жүйесі</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="mast-inner">
+    <a class="brand" href="/">Дипломдық жобалар</a>
+    <span class="term">2026–2027 оқу жылы</span>
+    {% if user %}
+    <div class="profile"><span><strong>{{ user.name }}</strong><small>{{ roles[user.role] }}</small></span><form action="/logout" method="post"><button class="header-action">Шығу</button></form></div>
+    {% else %}<a class="button header-action" href="/account">Жүйеге кіру</a>{% endif %}
+  </div>
+</header>
+<div class="nav-band">
+  <nav aria-label="Негізгі мәзір">
+    <a href="/" class="{{ 'selected' if screen in ['catalog','detail'] else '' }}">Тақырыптар каталогы</a>
+    <a href="/applications" class="{{ 'selected' if screen in ['applications', 'project'] else '' }}">{{ 'Менің өтінімім' if not user or user.role == 'student' else 'Өтінімдер' }}</a>
+    {% if user and user.role == 'student' %}<a href="/saved" class="{{ 'selected' if screen == 'saved' else '' }}">Таңдаулы тақырыптар</a>{% endif %}
+    {% if user and user.role != 'student' %}<a href="/manage" class="{{ 'selected' if screen in ['manage','edit'] else '' }}">Тақырыптарды басқару</a>{% endif %}
+    {% if user and user.role == 'department' %}<a href="/areas" class="{{ 'selected' if screen == 'areas' else '' }}">Бағыттар</a>{% endif %}
+    <a href="/guide" class="{{ 'selected' if screen == 'guide' else '' }}">Тіркеу тәртібі</a>
+  </nav>
+</div>
+  <main>
+    {% if message %}<p class="notice" role="status">{{ message }}</p>{% endif %}
+    {% if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+    {% if screen == 'catalog' %}
+    <header class="catalog-head">
+      <h1>Диплом тақырыптары</h1>
+      <p>Тақырыпты таңдап, ғылыми жетекшіге өтінім жіберіңіз.</p>
+    </header>
+    <div class="catalog-layout">
+      <aside aria-labelledby="filter-title" class="filter-panel">
+        <div class="section-head"><h2 id="filter-title">Сүзгілер</h2>{% if query or area or supervisor or free %}<a href="/">Тазалау</a>{% endif %}</div>
+        <form class="filters stack" id="topic-filters" action="/" method="get">
+          <label>Бағыт<select name="area"><option value="">Барлық бағыт</option>{% for option in areas %}<option {{ 'selected' if option == area else '' }}>{{ option }}</option>{% endfor %}</select></label>
+          <label>Ғылыми жетекші<select name="supervisor"><option value="">Барлық жетекші</option>{% for person in supervisors %}<option value="{{ person.id }}" {{ 'selected' if person.id|string == supervisor else '' }}>{{ person.name }}</option>{% endfor %}</select></label>
+          <label class="check"><input type="checkbox" name="free" value="true" {{ 'checked' if free else '' }}> Тек бос орны бар</label>
+        </form>
+      </aside>
+      <section aria-label="Тақырыптар тізімі" class="catalog">
+        <div class="search-bar">
+          <label class="sr" for="topic-search">Тақырып бойынша іздеу</label>
+          <input id="topic-search" form="topic-filters" type="search" name="q" value="{{ query }}" placeholder="Атауы, сипаттамасы немесе жетекші">
+          <button form="topic-filters">Іздеу</button>
+        </div>
+        <p class="result-count">{{ matched }} тақырып{% if matched != total %} / {{ total }}{% endif %}</p>
+      {% if topics %}
+      <div class="topic-list">{% for topic in topics %}{% set slots = topic.capacity - used.get(topic.id, 0) %}
+        <article class="topic-row">
+          <div><div class="topic-area">{{ topic.area }}</div><h2><a class="topic-title" href="/topics/{{ topic.id }}">{{ topic.title }}</a></h2><p>{{ topic.description|truncate(155) }}</p>
+          <small>Жетекші <a href="/?supervisor={{ topic.owner_id }}">{{ topic.owner.name }}</a></small></div>
+          <span class="availability {{ 'closed' if slots == 0 else '' }}">{{ slots ~ ' бос орын' if slots > 0 else 'Бос орын жоқ' }}</span>
+        </article>
+      {% endfor %}</div>
+      {% else %}<p class="empty">Сүзгіге сай тақырып табылмады. <a href="/">Сүзгіні тазалау</a></p>{% endif %}
+      {% if pages > 1 %}
+      <nav class="pages" aria-label="Каталог беттері">{% for number in range(1, pages + 1) %}<a class="button {{ '' if page == number else 'light' }}" {% if page == number %}aria-current="page"{% endif %} href="/?q={{ query|urlencode }}&amp;area={{ area|urlencode }}&amp;free={{ 'true' if free else 'false' }}{% if supervisor %}&amp;supervisor={{ supervisor|urlencode }}{% endif %}&amp;page={{ number }}">{{ number }}</a>{% endfor %}</nav>
+      {% endif %}
+      </section>
+    </div>
+    {% elif screen == 'detail' %}
+      <p class="breadcrumb"><a href="/">Диплом тақырыптары</a> <span aria-hidden="true">/</span> {{ topic.area }}</p>
+      <h1>{{ topic.title }}</h1>
+      <div class="cols">
+        <section class="panel pad"><h2>Жобаның сипаттамасы</h2><p class="preserve">{{ topic.description }}</p>
+          <dl class="details"><dt>Бағыт</dt><dd>{{ topic.area }}</dd><dt>Ғылыми жетекші</dt><dd><a href="/?supervisor={{ topic.owner_id }}">{{ topic.owner.name }}</a></dd><dt>Бос орын</dt><dd>{{ slots }} / {{ topic.capacity }}</dd></dl>
+          {% if user and user.role == 'student' %}<form class="decision" method="post" action="/saved/{{ topic.id }}/{{ 'remove' if saved else 'add' }}"><button class="light">{{ 'Таңдаулыдан алып тастау' if saved else 'Таңдаулыға қосу' }}</button></form>{% endif %}
+        </section>
+        <section class="panel pad"><h2>Өтінім беру</h2>
+        {% if slots <= 0 %}<p>Тақырып бойынша бос орын қалмады.</p>
+        {% elif not user %}<p>Өтінім беру үшін жүйеге кіріңіз.</p><a class="button" href="/account?next=/topics/{{ topic.id }}">Жүйеге кіру</a>
+        {% elif user.role == 'student' %}<form method="post" action="/topics/{{ topic.id }}/apply" class="stack">
+          <label>Тақырыпты таңдау негіздемесі<textarea name="motivation" minlength="10" maxlength="1500" rows="5" required placeholder="Бұл жобаға неге қызығасыз?"></textarea></label><button>Жетекшіге жіберу</button>
+        </form>{% else %}<p>Өтінімді студент жібереді.</p>{% endif %}
+        </section>
+      </div>
+    {% elif screen == 'saved' %}
+      <h1>Таңдаулы тақырыптар</h1>
+      {% if topics %}
+      <div class="panel scroll"><table><thead><tr><th>Тақырып</th><th>Бос орын</th><th><span class="sr">Әрекет</span></th></tr></thead><tbody>
+      {% for item in topics %}<tr><td><a class="topic-title" href="/topics/{{ item.id }}">{{ item.title }}</a><small>{{ item.owner.name }} · {{ item.area }}</small></td><td>{{ item.capacity - used.get(item.id, 0) }} / {{ item.capacity }}</td><td><form action="/saved/{{ item.id }}/remove" method="post"><button class="light">Алып тастау</button></form></td></tr>{% endfor %}
+      </tbody></table></div>
+      {% else %}<p class="panel pad">Сақталған тақырыптар әлі жоқ. <a href="/">Каталогты ашу</a></p>{% endif %}
+    {% elif screen == 'account' %}
+      <div class="account panel pad">
+        <h1>{{ 'Студентті тіркеу' if mode == 'register' else 'Жүйеге кіру' }}</h1>
+        <form method="post" class="stack">
+          <input type="hidden" name="mode" value="{{ mode }}"><input type="hidden" name="next" value="{{ request.query_params.get('next','') }}">
+          {% if mode == 'register' %}<label>Аты-жөні<input name="name" autocomplete="name" minlength="2" maxlength="100" required></label>{% endif %}
+          <label>Электрондық пошта<input name="email" type="email" autocomplete="username" maxlength="150" required></label>
+          <label>Құпиясөз<input name="password" type="password" autocomplete="{{ 'new-password' if mode == 'register' else 'current-password' }}" {% if mode == 'register' %} minlength="8"{% endif %} maxlength="128" required></label>
+          <button>{{ 'Тіркелу' if mode == 'register' else 'Кіру' }}</button>
+        </form>
+        {% if mode == 'register' %}<p><a href="/account">Жүйеге кіру</a></p>{% else %}
+        <p><a href="/account?mode=register">Студент ретінде тіркелу</a></p>
+        {% if demo_enabled %}<details><summary>Сынақ аккаунттары</summary><ul><li>Студент · student@demo.kz</li><li>Жетекші · supervisor@demo.kz</li><li>Кафедра · department@demo.kz</li></ul><p>Құпиясөз · <code>Demo2026!</code></p></details>{% endif %}{% endif %}
+      </div>
+    {% elif screen == 'applications' %}
+      <h1>{{ 'Менің өтінімдерім' if user.role == 'student' else 'Өтінімдер' }}</h1>
+      {% if user.role != 'student' %}
+      <nav class="review-tabs" aria-label="Өтінім сүзгісі">
+        <a href="/applications?review=waiting" {% if review == 'waiting' %}aria-current="page"{% endif %}>Қарау қажет · {{ waiting }}</a>
+        <a href="/applications?review=all" {% if review == 'all' %}aria-current="page"{% endif %}>Барлық өтінім</a>
+      </nav>
+      {% endif %}
+      <div class="review-layout {{ 'single' if not queue else '' }}">
+      {% if queue %}<nav aria-label="Өтінімдер тізімі" class="review-queue">
+        {% for candidate in queue %}
+        <a href="/applications?review={{ review }}&amp;selected={{ candidate.id }}" {% if entries and candidate.id == entries[0].id %}aria-current="page"{% endif %}>
+          <small>{{ '№ ' ~ candidate.id if user.role == 'student' else candidate.student.name }}</small>
+          <strong>{{ candidate.topic.title }}</strong><small>{{ statuses[candidate.status] }}</small>
+        </a>
+        {% endfor %}
+      </nav>{% endif %}
+      {% for item in entries %}
+      <article class="panel pad entry">
+        <div class="section-head"><h2><a href="/topics/{{ item.topic_id }}">{{ item.topic.title }}</a></h2><span class="badge {{ 'closed' if item.status in ['rejected','withdrawn'] else '' }}">{{ statuses[item.status] }}</span></div>
+        {% if user.role != 'student' %}<p>Студент · {{ item.student.name }}</p>{% endif %}
+        {% if item.status == 'approved' %}<p><a class="button" href="/projects/{{ item.id }}">Жоба жоспарын ашу</a></p>{% endif %}
+        <p class="preserve">{{ item.motivation }}</p>
+        <details {% if loop.first %}open{% endif %}><summary>Өтінім тарихы</summary><ol class="timeline">
+          {% for event in item.events %}<li><strong>{{ statuses[event.status] }}</strong><small>{{ event.created }} · {{ event.actor }}</small>{% if event.note %}<p class="preserve">{{ event.note }}</p>{% endif %}</li>{% endfor %}
+        </ol></details>
+        {% set can_review = (user.role == 'supervisor' and item.status == 'pending') or (user.role == 'department' and item.status == 'agreed') %}
+        {% if can_review %}
+        <form class="stack decision" method="post" action="/applications/{{ item.id }}">
+          <label>Шешімнің түсіндірмесі<textarea name="note" rows="2" maxlength="1000" placeholder="Қайтару немесе қабылдамау себебін көрсетіңіз"></textarea></label>
+          <div class="actions"><button name="action" value="{{ 'agreed' if user.role == 'supervisor' else 'approved' }}">{{ 'Кафедраға жіберу' if user.role == 'supervisor' else 'Бекіту' }}</button>
+          <button class="light" name="action" value="returned">Түзетуге қайтару</button><button class="light" name="action" value="rejected">Қабылдамау</button></div>
+        </form>
+        {% elif user.role == 'student' and item.status in ['pending','returned','agreed'] %}
+        <div class="actions decision">{% if item.status == 'returned' %}<a class="button" href="/topics/{{ item.topic_id }}">Өтінімді түзету</a>{% endif %}
+        <form method="post" action="/applications/{{ item.id }}"><button class="light" name="action" value="withdrawn">Өтінімді қайтарып алу</button></form></div>
+        {% endif %}
+      </article>
+      {% else %}<p class="panel pad">{{ 'Қарауды қажет ететін өтінім жоқ.' if review == 'waiting' else 'Өтінімдер әлі жоқ.' }} {% if user.role == 'student' %}<a href="/">Каталогтан тақырып таңдаңыз</a>.{% endif %}</p>{% endfor %}
+      </div>
+    {% elif screen == 'project' %}
+      <p class="breadcrumb"><a href="/applications?review=all&amp;selected={{ entry.id }}">Өтінімге оралу</a> <span aria-hidden="true">/</span> Жоба жоспары</p>
+      <header class="catalog-head">
+        <h1>{{ entry.topic.title }}</h1>
+        <p>Студент · {{ entry.student.name }} &nbsp; <span aria-hidden="true">/</span> &nbsp; Жетекші · {{ entry.topic.owner.name }}</p>
+      </header>
+      <div class="project-layout">
+        <section aria-labelledby="plan-heading">
+          <div class="section-head page-head"><h2 id="plan-heading">Жұмыс кезеңдері</h2>{% if plan %}<span>{{ completed }} / {{ plan|length }} аяқталды</span>{% endif %}</div>
+          {% for item in plan %}
+          {% set latest = item.drafts[-1] if item.drafts else none %}
+          <article class="panel pad entry">
+            <div class="section-head"><h2>{{ item.title }}</h2><span class="badge {{ 'closed' if latest and latest.state == 'changes' else '' }}">{{ draft_states[latest.state] if latest else 'Жұмыс жүріп жатыр' }}</span></div>
+            <p class="milestone-date">Мерзімі · <time datetime="{{ item.due.isoformat() }}">{{ item.due.strftime('%d.%m.%Y') }}</time>{% if item.due < today and (not latest or latest.state == 'changes') %} <strong>· Мерзімі өтті</strong>{% endif %}</p>
+            {% if item.instructions %}<p class="preserve">{{ item.instructions }}</p>{% endif %}
+            {% if item.drafts %}
+            <ol class="draft-list">{% for draft in item.drafts %}
+              <li>
+                <div class="section-head"><a href="/projects/{{ entry.id }}/drafts/{{ draft.id }}">{{ draft.filename }}</a><span>{{ draft_states[draft.state] }}</span></div>
+                <small>{{ loop.index }}-нұсқа · {{ draft.uploaded }}</small>
+                {% if draft.note %}<p class="preserve">{{ draft.note }}</p>{% endif %}
+                {% if draft.reviewed %}<div class="draft-feedback"><small>Жетекші шешімі · {{ draft.reviewed }}</small>{% if draft.feedback %}<p class="preserve">{{ draft.feedback }}</p>{% endif %}</div>{% endif %}
+              </li>
+            {% endfor %}</ol>
+            {% endif %}
+            {% if is_student and (not latest or latest.state == 'changes') %}
+              <form class="stack decision" action="/projects/{{ entry.id }}/plan/{{ item.id }}/draft" method="post" enctype="multipart/form-data">
+                <label>{{ 'Түзетілген нұсқа' if latest else 'Жұмыс нұсқасы' }}<input type="file" name="file" accept=".pdf,.docx" required><small>PDF немесе DOCX, ең көбі 10 МБ</small></label>
+                <label>Жетекшіге түсіндірме<textarea name="note" maxlength="1000" rows="2"></textarea></label>
+                <button>Тексеруге жіберу</button>
+              </form>
+            {% elif is_supervisor and latest and latest.state == 'pending' %}
+              <form class="stack decision" action="/projects/{{ entry.id }}/drafts/{{ latest.id }}" method="post">
+                <label>Жетекшінің пікірі<textarea name="feedback" maxlength="1500" rows="3" placeholder="Түзетуге қайтарсаңыз, себебін жазыңыз"></textarea></label>
+                <div class="actions"><button name="decision" value="accepted">Кезеңді қабылдау</button><button class="light" name="decision" value="changes">Түзету сұрау</button></div>
+              </form>
+            {% endif %}
+          </article>
+          {% else %}<p class="panel pad">Жетекші жұмыс кезеңдерін әлі енгізген жоқ.</p>{% endfor %}
+        </section>
+        {% if is_supervisor %}
+        <section class="panel pad">
+          <h2>Кезең қосу</h2>
+          <form class="stack" action="/projects/{{ entry.id }}/plan" method="post">
+            <label>Кезең атауы<input name="title" minlength="3" maxlength="120" placeholder="Мысалы, зерттеу жоспары" required></label>
+            <label>Тапсырма<textarea name="instructions" maxlength="1500" rows="4"></textarea></label>
+            <label>Тапсыру мерзімі<input type="date" name="due" required></label>
+            <button>Жоспарға қосу</button>
+          </form>
+        </section>
+        {% endif %}
+      </div>
+    {% elif screen == 'manage' %}
+      <div class="section-head page-head"><h1>Тақырыптарды басқару</h1><a href="/edit" class="button">Тақырып қосу</a></div>
+      <section class="panel scroll"><table><thead><tr><th>Тақырып</th><th>Жетекші</th><th>Орын саны</th><th><span class="sr">Әрекет</span></th></tr></thead><tbody>
+      {% for item in topics %}<tr><td><a class="topic-title" href="/topics/{{ item.id }}">{{ item.title }}</a><small>{{ item.area }}</small></td><td>{{ item.owner.name }}</td><td>{{ item.capacity }}</td><td><a href="/edit/{{ item.id }}" class="button light">Өңдеу</a></td></tr>
+      {% else %}<tr><td colspan="4">Тақырыптар әлі жоқ.</td></tr>{% endfor %}
+      </tbody></table></section>
+    {% elif screen == 'areas' %}
+      <h1>Каталог бағыттары</h1>
+      <section class="panel pad editor">
+        <form action="/areas" method="post" class="stack">
+          <label>Жаңа бағыт<input name="name" minlength="2" maxlength="80" required></label>
+          <button>Бағыт қосу</button>
+        </form>
+        {% for direction in directions %}
+        <div class="decision actions">
+          <form action="/areas/{{ direction.id }}" method="post" class="stack">
+            <label>Бағыт атауы<input name="name" value="{{ direction.name }}" minlength="2" maxlength="80" required></label>
+            <div class="actions"><button class="light">Сақтау</button><span>{{ counts.get(direction.name, 0) }} тақырып</span></div>
+          </form>
+          {% if not counts.get(direction.name) %}
+          <details><summary>Жою</summary><form action="/areas/{{ direction.id }}" method="post"><button class="light" name="action" value="delete">Жоюды растау</button></form></details>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </section>
+    {% elif screen == 'edit' %}
+      <p><a href="/manage">Тақырыптарды басқару</a></p>
+      <h1>{{ 'Тақырыпты өңдеу' if topic else 'Жаңа тақырып' }}</h1>
+      <section class="panel pad editor">
+      {% if related %}
+        <aside class="notice"><strong>Ұқсас атаулар табылды</strong><ul>{% for item in related %}<li><a href="/topics/{{ item.id }}">{{ item.title }}</a></li>{% endfor %}</ul></aside>
+      {% endif %}
+      <form method="post" class="stack">
+        <label>Тақырып атауы<input name="title" value="{{ data.title if data else '' }}" minlength="8" maxlength="180" required></label>
+        <label>Сипаттама<textarea name="description" minlength="20" maxlength="2000" rows="5" required>{{ data.description if data else '' }}</textarea></label>
+        <label>Бағыт<select name="area">{% for option in areas %}<option {{ 'selected' if data and data.area == option else '' }}>{{ option }}</option>{% endfor %}</select></label>
+        <label>Орын саны<input name="capacity" type="number" min="1" max="20" value="{{ data.capacity if data else 1 }}" required></label>
+        {% if user.role == 'department' and not topic %}<label>Ғылыми жетекші<select name="owner_id" required>{% for owner in supervisors %}<option value="{{ owner.id }}" {{ 'selected' if data and data.owner_id|string == owner.id|string else '' }}>{{ owner.name }}</option>{% endfor %}</select></label>{% endif %}
+        {% if related and not error %}<label class="check"><input type="checkbox" name="confirm" value="yes" required> Ұқсас тақырыптарды қарап шықтым</label>{% endif %}
+        <button>Сақтау</button>
+      </form>
+      {% if topic %}<details class="decision"><summary>Тақырыпты жою</summary><form method="post"><button class="light" name="delete" value="yes">Жоюды растау</button></form></details>{% endif %}
+      </section>
+    {% elif screen == 'guide' %}
+      <h1>Тіркеу тәртібі</h1>
+      <section class="panel pad editor"><ol class="timeline guide">
+        <li><strong>Тақырыпты таңдау</strong><p>Каталогтан бағытты, ғылыми жетекшіні және бос орын санын тексеріңіз.</p></li>
+        <li><strong>Жетекшіге өтінім жіберу</strong><p>Тақырыпты неге таңдағаныңызды жазыңыз. Бір уақытта бір белсенді өтінім беруге болады.</p></li>
+        <li><strong>Жетекшімен келісу</strong><p>Жетекші келіссе, бос орын сақталып, өтінім кафедраға жіберіледі.</p></li>
+        <li><strong>Кафедра шешімі</strong><p>Кафедра өтінімді бекітеді, түзетуге қайтарады немесе қабылдамайды. Шешім мен түсіндірме өтінім тарихында сақталады.</p></li>
+      </ol><a class="button" href="/">Каталогты ашу</a></section>
+    {% endif %}
+  </main>
+</body>
+</html>
